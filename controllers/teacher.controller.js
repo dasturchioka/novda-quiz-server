@@ -1,6 +1,6 @@
 const { PrismaClient } = require('@prisma/client')
-const { createToken } = require('../api/services/jwt.service')
-const { createOneId } = require('../api/utils/oneid.util')
+const { createToken } = require('../services/jwt.service')
+const { createOneId } = require('../utils/oneid.util')
 const express = require('express')
 const path = require('path')
 const multer = require('multer')
