@@ -6,7 +6,7 @@
 		"server-run": "nodemon src/index.js",
 		"psql-run": "npx prisma db push",
 		"psql-studio-run": "npx prisma studio",
-		"dev": "concurrently \"npm run server-run\" \"npm run psql-run\" \"npm run psql-studio-run\"",
+		"devCommand": "concurrently \"npm run server-run\" \"npm run psql-run\" \"npm run psql-studio-run\"",
 		"start": "concurrently \"npm run server-run\" \"npm run psql-run\""
 	},
 	"keywords": [],
