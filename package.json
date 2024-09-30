@@ -1,9 +1,9 @@
 {
 	"name": "server",
 	"version": "1.0.0",
-	"main": "api/index.js",
+	"main": "src/index.js",
 	"scripts": {
-		"server-run": "nodemon api/index.js",
+		"server-run": "nodemon src/index.js",
 		"psql-run": "npx prisma db push",
 		"psql-studio-run": "npx prisma studio",
 		"devCommand": "concurrently \"npm run server-run\" \"npm run psql-run\" \"npm run psql-studio-run\"",
