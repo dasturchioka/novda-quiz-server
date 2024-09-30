@@ -1,0 +1,99 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Teacher {
+  id         String     @id @unique @default(cuid())
+  oneId      String     @unique
+  fullname   String
+  password   String
+  bio        String?
+  classrooms Classrom[]
+  packages   Package[]
+  Exam       Exam[]
+}
+
+model Classrom {
+  id        String    @id @unique @default(cuid())
+  oneId     String    @unique
+  name      String
+  teacher   Teacher?  @relation(fields: [teacherId], references: [id])
+  students  Student[]
+  teacherId String?
+  Exam      Exam[]
+}
+
+model Student {
+  id         String     @id @unique @default(cuid())
+  oneId      String     @unique
+  fullname   String
+  classrooms Classrom[]
+  Exam       Exam?      @relation(fields: [examId], references: [id])
+  examId     String?
+  Score      Score[]
+}
+
+model Question {
+  id           String   @id @unique @default(cuid())
+  questionText String
+  optionA      String
+  optionB      String
+  optionC      String
+  optionD      String
+  answer       String
+  img          String?
+  package      Package? @relation(fields: [packageId], references: [id])
+  packageId    String?
+}
+
+model Package {
+  id        String        @id @unique @default(cuid())
+  oneId     String        @unique
+  name      String
+  status    StatusPackage @default(Private)
+  teacher   Teacher       @relation(fields: [teacherId], references: [id])
+  questions Question[]
+  teacherId String
+  Exam      Exam[]
+}
+
+model Exam {
+  id            String    @id @unique @default(cuid())
+  oneId         String    @unique
+  packageOfExam Package   @relation(fields: [packageId], references: [id])
+  name          String
+  classroom     Classrom  @relation(fields: [classromId], references: [id])
+  teacher       Teacher   @relation(fields: [teacherId], references: [id])
+  students      Student[]
+  packageId     String
+  classromId    String
+  active        Boolean   @default(true)
+  teacherId     String
+  Score         Score[]
+}
+
+model Score {
+  id              String  @id @unique @default(cuid())
+  questionsNumber Int
+  correctAnswers  Int
+  exam            Exam    @relation(fields: [examId], references: [id])
+  student         Student @relation(fields: [studentId], references: [id])
+  examId          String
+  studentId       String
+}
+
+enum StatusPackage {
+  Private
+  Public
+}
