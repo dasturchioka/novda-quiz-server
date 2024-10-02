@@ -4,26 +4,58 @@ const { createOneId } = require('../utils/oneid.util')
 const express = require('express')
 const path = require('path')
 const multer = require('multer')
-const fs = require('fs-extra')
-const tmp = require('tmp')
+const fs = require('fs').promises
 const sharp = require('sharp')
 const TEACHER_JWT_SIGNATURE = process.env.TEACHER_JWT_SIGNATURE
 
 const prisma = new PrismaClient()
 
-const tempDir = path.join(__dirname, '../../src/public/temp/')
-
-const storage = multer.diskStorage({
-	destination: (req, file, cb) => {
-		cb(null, tempDir) // Save the original image temporarily
-	},
-	filename: (req, file, cb) => {
-		const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9)
-		cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname))
-	},
-})
+const storage = multer.memoryStorage()
 
 const upload = multer({ storage })
+
+const processImageAndSave = async (req, res, next) => {
+	try {
+		if (req.file) {
+			const file = req.file
+			const fileSizeInBytes = file.size
+			const fileSizeInKB = fileSizeInBytes / 1024
+
+			const finalDir = path.join(__dirname, '../../src/public/question-imgs/')
+
+			// Generate a unique filename with the original extension
+			const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9)
+			const fileExtension = path.extname(file.originalname) // Get the original file extension (e.g., .jpg, .png)
+			const fileName = file.fieldname + '-' + uniqueSuffix + fileExtension
+			const finalDestination = path.join(finalDir, fileName) // Final destination path with the generated filename
+
+			// Ensure the final destination directory exists
+			await fs.mkdir(finalDir, { recursive: true })
+
+			// Process the image buffer in memory
+			if (fileSizeInKB > 100) {
+				await sharp(file.buffer) // Use the file buffer instead of file.path
+					.resize({ width: 800 }) // Resize to a max width of 800px
+					.webp({ quality: 90 }) // Convert to WebP format with 90% quality
+					.toFile(finalDestination) // Save directly to the final destination
+			} else {
+				// If file size is small, save the original buffer without resizing
+				await fs.writeFile(finalDestination, file.buffer)
+			}
+
+			// Attach the generated filename and path to the req object so it can be used later
+			req.savedImage = {
+				fileName,
+				filePath: `/question-imgs/${fileName}`,
+			}
+		}
+
+		return next() // Move to the next middleware (addQuestionsToPackage)
+	} catch (error) {
+		console.error(error)
+		return res.status(500).json({ status: 'error', error })
+	}
+}
 
 async function register(req, res) {
 	try {
@@ -166,37 +198,87 @@ async function createQuestionPackage(req, res) {
 	}
 }
 
+async function getQuestionPackages(req, res) {
+	try {
+		try {
+			const { teacherOneId } = req.body
+
+			const questionPackages = await prisma.package.findMany({
+				where: { teacher: { oneId: teacherOneId } },
+				include: { questions: true },
+			})
+
+			if (!questionPackages) {
+				return res.json({ status: 'bad', msg: 'Sizda hali paketlar mavjud emas' })
+			}
+
+			return res.json({ status: 'ok', packages: questionPackages })
+		} catch (error) {
+			console.log(error)
+			return res.status(500).json(error)
+		}
+	} catch (error) {
+		console.log(error)
+		return res.status(500).json(error)
+	}
+}
+
+async function getSinglePackage(req, res) {
+	try {
+		const { oneId } = req.params
+
+		const singlePackage = await prisma.package.findUnique({
+			where: { oneId },
+			include: { questions: true, teacher: true },
+		})
+
+		if (!singlePackage) {
+			return res.json({ status: 'bad', msg: 'Paket topilmadi' })
+		}
+
+		return res.json({ singlePackage, status: 'ok' })
+	} catch (error) {
+		console.log(error)
+		return res.status(500).json(error)
+	}
+}
+
 /**
  * @param {express.Request} req
  * @param {express.Response} res
  */
+
 async function addQuestionsToPackage(req, res) {
 	try {
-		const { question, packageOneId } = req.body
+		const question = req.body
+		const { packageOneId } = req.params
 
-		const fileSizeInBytes = req.file.size
-		const fileSizeInKB = fileSizeInBytes / 1024
+		if (req.file) {
+			let imgPath = ''
+			if (req.savedImage) {
+				// Use the image path saved in the req object by the processImageAndSave middleware
+				imgPath = req.savedImage.filePath
+			}
+			// Get the relative path for DB
 
-		const tempFile = tmp.fileSync({ postfix: '.png' })
+			// Save question to the database with the image path
+			const newQuestion = await prisma.question.create({
+				data: {
+					answer: question.answer,
+					questionText: question.questionText,
+					optionA: question.optionA,
+					optionB: question.optionB,
+					optionC: question.optionC,
+					optionD: question.optionD,
+					img: imgPath,
+					package: { connect: { oneId: packageOneId } },
+				},
+			})
 
-		const finalDir = path.join(__dirname, '../../src/public/question-imgs/')
-		const finalDestination = path.join(finalDir, req.file.filename)
-
-		if (fileSizeInKB > 100) {
-			await sharp(req.file.path).resize({ width: 800 }).webp({ quality: 90 }).toFile(tempFile.name)
-		} else {
-			await fs.copyFile(req.file.path, tempFile.name)
+			return res.json({ status: 'ok', msg: "Savol qo'shildi", question: newQuestion })
 		}
 
-		await fs.copyFile(tempFile.name, finalDestination)
-
-		await fs.unlink(req.file.path)
-
-		await fs.unlink(tempFile.name)
-
-		// Get the relative path to be saved in the database
-		const imgPath = `/question-imgs/${req.file.filename}`
-
+		// Handle case with no image
 		const newQuestion = await prisma.question.create({
 			data: {
 				answer: question.answer,
@@ -205,15 +287,25 @@ async function addQuestionsToPackage(req, res) {
 				optionB: question.optionB,
 				optionC: question.optionC,
 				optionD: question.optionD,
-				img: imgPath,
+				img: '',
 				package: { connect: { oneId: packageOneId } },
 			},
 		})
 
 		return res.json({ status: 'ok', msg: "Savol qo'shildi", question: newQuestion })
 	} catch (error) {
-		console.log(error)
+		console.error(error)
 		return res.status(500).json(error)
+	}
+}
+
+// Helper function to manually close file descriptors
+async function closeFile(filePath) {
+	try {
+		const fd = await fs.open(filePath, 'r') // Open file descriptor
+		await fd.close() // Close the file descriptor
+	} catch (err) {
+		console.error(`Error closing file: ${filePath}`, err)
 	}
 }
 
@@ -336,6 +428,23 @@ async function finishExam(req, res) {
 	}
 }
 
+async function retryUnlink(filePath, retries = 8, delay = 100) {
+	for (let attempt = 1; attempt <= retries; attempt++) {
+		try {
+			await fse.remove(filePath) // Use fs-extra's remove method for better handling
+			return // Success, exit the loop
+		} catch (err) {
+			if (attempt < retries) {
+				console.log(`Retrying unlink for ${filePath}... Attempt ${attempt}`)
+				await new Promise(resolve => setTimeout(resolve, delay)) // Wait before retrying
+			} else {
+				console.error(`Failed to unlink ${filePath} after ${retries} attempts`, err)
+				throw err // Throw error if retries exhausted
+			}
+		}
+	}
+}
+
 module.exports = {
 	register,
 	login,
@@ -349,4 +458,7 @@ module.exports = {
 	editQuestion,
 	upload,
 	check,
+	processImageAndSave,
+	getQuestionPackages,
+	getSinglePackage,
 }
