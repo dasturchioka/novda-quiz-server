@@ -57,6 +57,64 @@ const processImageAndSave = async (req, res, next) => {
 	}
 }
 
+const processImageAndUpdate = async (req, res, next) => {
+	try {
+		if (req.file) {
+			const question = await prisma.question.findUnique({ where: { id: req.body.id } })
+
+			const existingImagePath = question.img
+
+			const file = req.file
+			const fileSizeInBytes = file.size
+			const fileSizeInKB = fileSizeInBytes / 1024
+
+			const finalDir = path.join(__dirname, '../../src/public/question-imgs/')
+
+			// Generate a unique filename with the original extension
+			const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9)
+			const fileExtension = path.extname(file.originalname) // Get the original file extension (e.g., .jpg, .png)
+			const fileName = file.fieldname + '-' + uniqueSuffix + fileExtension
+			const finalDestination = path.join(finalDir, fileName) // Final destination path with the generated filename
+
+			// Ensure the final destination directory exists
+			await fs.mkdir(finalDir, { recursive: true })
+
+			// Delete the old image if it exists
+			if (existingImagePath) {
+				const oldImagePath = path.join(__dirname, '../../src/public', existingImagePath)
+				try {
+					await fs.unlink(oldImagePath) // Delete the existing image file
+					console.log(`Deleted old image: ${existingImagePath}`)
+				} catch (err) {
+					console.warn(`Failed to delete old image: ${existingImagePath}`, err)
+				}
+			}
+
+			// Process the new image buffer in memory
+			if (fileSizeInKB > 100) {
+				await sharp(file.buffer) // Use the file buffer instead of file.path
+					.resize({ width: 800 }) // Resize to a max width of 800px
+					.webp({ quality: 90 }) // Convert to WebP format with 90% quality
+					.toFile(finalDestination) // Save directly to the final destination
+			} else {
+				// If file size is small, save the original buffer without resizing
+				await fs.writeFile(finalDestination, file.buffer)
+			}
+
+			// Attach the generated filename and path to the req object so it can be used later
+			req.savedImage = {
+				fileName,
+				filePath: `/question-imgs/${fileName}`,
+			}
+		}
+
+		return next() // Move to the next middleware (e.g., update the database with the new image path)
+	} catch (error) {
+		console.error(error)
+		return res.status(500).json({ status: 'error', error })
+	}
+}
+
 async function register(req, res) {
 	try {
 		const { fullname, password } = req.body
@@ -198,21 +256,35 @@ async function createQuestionPackage(req, res) {
 	}
 }
 
+/**
+ *
+ * @param {express.Request} req
+ * @param {express.Response} res
+ * @returns
+ */
 async function getQuestionPackages(req, res) {
 	try {
 		try {
 			const { teacherOneId } = req.body
+			const { questions } = req.query
 
 			const questionPackages = await prisma.package.findMany({
 				where: { teacher: { oneId: teacherOneId } },
-				include: { questions: true },
+				include: { questions: +questions ? true : false },
 			})
 
 			if (!questionPackages) {
 				return res.json({ status: 'bad', msg: 'Sizda hali paketlar mavjud emas' })
 			}
 
-			return res.json({ status: 'ok', packages: questionPackages })
+			let newQuestionPackages = questionPackages.map(async q => {
+				const countQuestions = await prisma.question.count({ where: { packageId: q.id } })
+				return { ...q, questionCount: countQuestions }
+			})
+
+			const result = await Promise.all(newQuestionPackages)
+
+			return res.json({ status: 'ok', packages: result })
 		} catch (error) {
 			console.log(error)
 			return res.status(500).json(error)
@@ -226,17 +298,18 @@ async function getQuestionPackages(req, res) {
 async function getSinglePackage(req, res) {
 	try {
 		const { oneId } = req.params
+		const { questions } = req.query
 
 		const singlePackage = await prisma.package.findUnique({
 			where: { oneId },
-			include: { questions: true, teacher: true },
+			include: { questions: { orderBy: { createdAt: 'asc' } }, teacher: true },
 		})
 
 		if (!singlePackage) {
 			return res.json({ status: 'bad', msg: 'Paket topilmadi' })
 		}
 
-		return res.json({ singlePackage, status: 'ok' })
+		return res.json({ singlePackage, status: 'ok', questions: singlePackage.questions })
 	} catch (error) {
 		console.log(error)
 		return res.status(500).json(error)
@@ -275,7 +348,7 @@ async function addQuestionsToPackage(req, res) {
 				},
 			})
 
-			return res.json({ status: 'ok', msg: "Savol qo'shildi", question: newQuestion })
+			return res.json({ status: 'ok', msg: "Savol qo'shildi", question: newQuestion, packageOneId })
 		}
 
 		// Handle case with no image
@@ -292,20 +365,10 @@ async function addQuestionsToPackage(req, res) {
 			},
 		})
 
-		return res.json({ status: 'ok', msg: "Savol qo'shildi", question: newQuestion })
+		return res.json({ status: 'ok', msg: "Savol qo'shildi", question: newQuestion, packageOneId })
 	} catch (error) {
 		console.error(error)
 		return res.status(500).json(error)
-	}
-}
-
-// Helper function to manually close file descriptors
-async function closeFile(filePath) {
-	try {
-		const fd = await fs.open(filePath, 'r') // Open file descriptor
-		await fd.close() // Close the file descriptor
-	} catch (err) {
-		console.error(`Error closing file: ${filePath}`, err)
 	}
 }
 
@@ -317,42 +380,19 @@ async function closeFile(filePath) {
 async function editQuestion(req, res) {
 	try {
 		const file = req.file
+		const question = req.body
 
 		if (file) {
-			const { question } = req.body
-			const existQuestion = await prisma.question.findUnique({ where: { id: question.id } })
-
-			await fs.unlink(path.join(__dirname, `../../src/public/${existQuestion.img}`))
-
-			const fileSizeInBytes = req.file.size
-			const fileSizeInKB = fileSizeInBytes / 1024
-
-			const tempFile = tmp.fileSync({ postfix: '.png' })
-
-			const finalDir = path.join(__dirname, '../../src/public/question-imgs/')
-			const finalDestination = path.join(finalDir, req.file.filename)
-
-			if (fileSizeInKB > 100) {
-				await sharp(req.file.path)
-					.resize({ width: 800 })
-					.webp({ quality: 90 })
-					.toFile(tempFile.name)
-			} else {
-				await fs.copyFile(req.file.path, tempFile.name)
+			let imgPath = ''
+			if (req.savedImage) {
+				// Use the image path saved in the req object by the processImageAndSave middleware
+				imgPath = req.savedImage.filePath
 			}
-
-			await fs.copyFile(tempFile.name, finalDestination)
-
-			await fs.unlink(req.file.path)
-
-			await fs.unlink(tempFile.name)
-
-			// Get the relative path to be saved in the database
-			const imgPath = `/question-imgs/${req.file.filename}`
 
 			const editedQuestion = await prisma.question.update({
 				where: { id: question.id },
 				data: { ...question, img: imgPath },
+				include: { package: true },
 			})
 
 			return res.json({ status: 'ok', msg: 'Savol yangilandi', question: editedQuestion })
@@ -361,6 +401,7 @@ async function editQuestion(req, res) {
 		const editedQuestion = await prisma.question.update({
 			where: { id: question.id },
 			data: question,
+			include: { package: true },
 		})
 
 		return res.json({ msg: 'Savol yangilandi', status: 'ok', question: editedQuestion })
@@ -372,10 +413,10 @@ async function editQuestion(req, res) {
 
 async function deleteQuestion(req, res) {
 	try {
-		const { oneId } = req.body
+		const { id } = req.params
 
 		const deletedQuestion = await prisma.question.delete({
-			where: { id: oneId },
+			where: { id: id },
 			include: { package: false },
 		})
 
@@ -385,6 +426,48 @@ async function deleteQuestion(req, res) {
 	} catch (error) {
 		console.log(error)
 		return res.status(500).json(error)
+	}
+}
+
+const deleteExistingImage = async (req, res, next) => {
+	try {
+		const question = await prisma.question.findUnique({ where: { id: req.params.id } })
+
+		const existingImagePath = question.img
+
+		if (existingImagePath) {
+			const fullPath = path.join(__dirname, '../../src/public', existingImagePath) // Construct full path
+
+			try {
+				// Check if the file exists before trying to delete it
+				await fs.access(fullPath) // Check if file is accessible (exists)
+				await fs.unlink(fullPath) // Delete the file
+				console.log(`Deleted image: ${existingImagePath}`)
+			} catch (err) {
+				// If the file does not exist or cannot be deleted, log a warning
+				console.warn(`Failed to delete image: ${existingImagePath}`, err)
+			}
+		}
+
+		// Proceed to the next middleware after attempting to delete the image
+		return next()
+	} catch (error) {
+		console.error(`Error while deleting image: ${error}`)
+		return res.status(500).json({ status: 'error', error })
+	}
+}
+
+async function deleteImageOfQuestion(req, res) {
+	try {
+		const updatedQuestion = await prisma.question.update({
+			where: { id: req.params.id },
+			data: { img: '' },
+		})
+
+		return res.json({ status: 'ok', msg: "Savol rasmi o'chirildi", question: updatedQuestion })
+	} catch (error) {
+		console.error(error)
+		return res.status(500).json({ status: 'error', error })
 	}
 }
 
@@ -428,23 +511,6 @@ async function finishExam(req, res) {
 	}
 }
 
-async function retryUnlink(filePath, retries = 8, delay = 100) {
-	for (let attempt = 1; attempt <= retries; attempt++) {
-		try {
-			await fse.remove(filePath) // Use fs-extra's remove method for better handling
-			return // Success, exit the loop
-		} catch (err) {
-			if (attempt < retries) {
-				console.log(`Retrying unlink for ${filePath}... Attempt ${attempt}`)
-				await new Promise(resolve => setTimeout(resolve, delay)) // Wait before retrying
-			} else {
-				console.error(`Failed to unlink ${filePath} after ${retries} attempts`, err)
-				throw err // Throw error if retries exhausted
-			}
-		}
-	}
-}
-
 module.exports = {
 	register,
 	login,
@@ -461,4 +527,7 @@ module.exports = {
 	processImageAndSave,
 	getQuestionPackages,
 	getSinglePackage,
+	processImageAndUpdate,
+	deleteImageOfQuestion,
+	deleteExistingImage,
 }

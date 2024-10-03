@@ -55,6 +55,7 @@ model Question {
   img          String?
   package      Package? @relation(fields: [packageId], references: [id])
   packageId    String?
+  createdAt    DateTime @default(now())
 }
 
 model Package {

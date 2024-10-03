@@ -16,6 +16,9 @@ const {
 	getQuestionPackages,
 	getSinglePackage,
 	processImageAndSave,
+	processImageAndUpdate,
+	deleteImageOfQuestion,
+	deleteExistingImage,
 } = require('../controllers/teacher.controller')
 
 router.post('/register', register)
@@ -31,8 +34,9 @@ router.post(
 	processImageAndSave,
 	addQuestionsToPackage
 )
-router.put('/edit-question', upload.single('img'), processImageAndSave, editQuestion)
-router.delete('/delete-question', deleteQuestion)
+router.put('/edit-question', upload.single('img'), processImageAndUpdate, editQuestion)
+router.delete('/delete-question/:id', deleteQuestion)
+router.delete('/delete-image-of-question/:id', deleteExistingImage, deleteImageOfQuestion)
 router.post('/start-exam', startExam)
 router.post('/finish-exam', finishExam)
 router.post('/remove-student', removeStudentFromClassroom)
