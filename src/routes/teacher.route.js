@@ -11,20 +11,32 @@ const {
 	register,
 	removeStudentFromClassroom,
 	startExam,
-	upload,
 	check,
 	getQuestionPackages,
 	getSinglePackage,
+	deleteImageOfQuestion,
+	getAllClassrooms,
+	getSingleClassroom,
+} = require('../controllers/teacher.controller')
+const {
+	upload,
+	deleteExistingImage,
 	processImageAndSave,
 	processImageAndUpdate,
-	deleteImageOfQuestion,
-	deleteExistingImage,
-} = require('../controllers/teacher.controller')
+} = require('../services/file.service')
 
+// auth
 router.post('/register', register)
 router.post('/login', login)
 router.get('/check/:id', check)
+
+// classrooms
 router.post('/create-classroom', createClassroom)
+router.post('/remove-student', removeStudentFromClassroom)
+router.get("/get-classrooms", getAllClassrooms)
+router.get("/get-single-classroom", getSingleClassroom)
+
+// packages and questions
 router.post('/create-question-package', createQuestionPackage)
 router.get('/get-all-packages', getQuestionPackages)
 router.get('/get-single-package/:oneId', getSinglePackage)
@@ -37,8 +49,9 @@ router.post(
 router.put('/edit-question', upload.single('img'), processImageAndUpdate, editQuestion)
 router.delete('/delete-question/:id', deleteQuestion)
 router.delete('/delete-image-of-question/:id', deleteExistingImage, deleteImageOfQuestion)
+
+// exams
 router.post('/start-exam', startExam)
 router.post('/finish-exam', finishExam)
-router.post('/remove-student', removeStudentFromClassroom)
 
 module.exports = router
