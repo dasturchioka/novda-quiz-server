@@ -182,10 +182,13 @@ async function createQuestionPackage(req, res) {
 
 		const newQuestionPackage = await prisma.package.create({
 			data: { oneId: newOneId, name, teacher: { connect: { oneId: teacherOneId } } },
-			include: { questions: true },
 		})
 
-		return res.json({ status: 'ok', msg: 'Paket yaratildi', package: newQuestionPackage })
+		return res.json({
+			status: 'ok',
+			msg: 'Paket yaratildi',
+			package: { ...newQuestionPackage, questionCount: 0 },
+		})
 	} catch (error) {
 		console.log(error)
 		return res.status(500).json(error)
@@ -240,6 +243,29 @@ async function getSinglePackage(req, res) {
 		return res.json({ singlePackage, status: 'ok', questions: singlePackage.questions })
 	} catch (error) {
 		console.log(error)
+		return res.status(500).json(error)
+	}
+}
+
+async function editPackage(req, res) {
+	try {
+		const { name } = req.body
+		const { packageOneId } = req.params
+
+		const existPackage = await prisma.package.count({ where: { oneId: packageOneId } })
+
+		if (!existPackage) {
+			return res.json({ status: 'bad', msg: 'Savol paketi topilmadi!' })
+		}
+
+		const updatedPackage = await prisma.package.update({
+			where: { oneId: packageOneId },
+			data: { name },
+		})
+
+		return res.json({ status: 'ok', msg: 'Paket yangilandi', package: updatedPackage })
+	} catch (error) {
+		console.error(error)
 		return res.status(500).json(error)
 	}
 }
@@ -419,4 +445,5 @@ module.exports = {
 	getAllClassrooms,
 	getSingleClassroom,
 	editClassroom,
+	editPackage,
 }
