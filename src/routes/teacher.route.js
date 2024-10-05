@@ -18,6 +18,7 @@ const {
 	getAllClassrooms,
 	getSingleClassroom,
 	editPackage,
+	deletePackage,
 } = require('../controllers/teacher.controller')
 const {
 	upload,
@@ -42,6 +43,7 @@ router.post('/create-question-package', createQuestionPackage)
 router.put('/edit-package/:packageOneId', editPackage)
 router.get('/get-all-packages', getQuestionPackages)
 router.get('/get-single-package/:oneId', getSinglePackage)
+router.delete('/delete-package/:packageOneId', deletePackage)
 router.post(
 	'/add-question/:packageOneId',
 	upload.single('img'),

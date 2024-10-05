@@ -270,6 +270,49 @@ async function editPackage(req, res) {
 	}
 }
 
+async function deletePackage(req, res) {
+	try {
+		const { packageOneId } = req.params
+
+		const questions = await prisma.question.findMany({
+			where: { package: { oneId: packageOneId } },
+		})
+
+		questions.forEach(async q => {
+			if (q.img) {
+				const existingImagePath = q.img
+
+				if (existingImagePath) {
+					const fullPath = path.join(__dirname, '../../src/public', existingImagePath) // Construct full path
+
+					try {
+						// Check if the file exists before trying to delete it
+						await fs.access(fullPath) // Check if file is accessible (exists)
+						await fs.unlink(fullPath) // Delete the file
+					} catch (err) {
+						// If the file does not exist or cannot be deleted, log a warning
+						console.warn(`Failed to delete image: ${existingImagePath}`, err)
+					}
+				}
+			}
+		})
+
+		await prisma.question.deleteMany({
+			where: { package: { oneId: packageOneId } },
+		})
+
+		await prisma.package.delete({
+			where: { oneId: packageOneId },
+			include: { questions: true, teacher: false },
+		})
+
+		return res.json({ status: 'ok', msg: "Paket muvaffaqqiyatli o'chirildi" })
+	} catch (error) {
+		console.error(error)
+		return res.status(500).json(error)
+	}
+}
+
 async function addQuestionsToPackage(req, res) {
 	try {
 		const question = req.body
@@ -446,4 +489,5 @@ module.exports = {
 	getSingleClassroom,
 	editClassroom,
 	editPackage,
+	deletePackage,
 }
