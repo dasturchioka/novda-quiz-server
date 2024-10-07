@@ -100,7 +100,11 @@ async function createClassroom(req, res) {
 			data: { name, oneId: newOneId, teacher: { connect: { oneId: teacherOneId } } },
 		})
 
-		return res.json({ status: 'ok', classroom: newClassroom, msg: 'Yangi guruh yaratildi' })
+		return res.json({
+			status: 'ok',
+			classroom: { ...newClassroom, studentsCount: 0 },
+			msg: 'Yangi guruh yaratildi',
+		})
 	} catch (error) {
 		console.log(error)
 		return res.status(500).json(error)
@@ -133,7 +137,29 @@ async function removeStudentFromClassroom(req, res) {
 
 async function editClassroom(req, res) {
 	try {
-	} catch (error) {}
+		const { classroomOneId } = req.params
+		const { name } = req.body
+
+		const classroom = await prisma.classrom.findUnique({ where: { oneId: classroomOneId } })
+
+		if (!classroom) {
+			return res.json({ status: 'bad', msg: 'Sinfxona topilmadi' })
+		}
+
+		const updatedClassroom = await prisma.classrom.update({
+			where: { oneId: classroomOneId },
+			data: { name },
+		})
+
+		return res.json({
+			status: 'ok',
+			msg: "Sinfxona ma'lumoti yangilandi",
+			classroom: updatedClassroom,
+		})
+	} catch (error) {
+		console.log(error)
+		return res.status(500).json(error)
+	}
 }
 
 async function getAllClassrooms(req, res) {
@@ -142,13 +168,24 @@ async function getAllClassrooms(req, res) {
 
 		const classrooms = await prisma.classrom.findMany({
 			where: { teacher: { oneId: teacherOneId } },
+			include: { students: true },
 		})
 
 		if (!classrooms) {
 			return res.json({ status: 'bad', msg: 'Sizda hali sinfxonalar mavjud emas' })
 		}
 
-		return res.json({ status: 'ok', classrooms })
+		let newClassrooms = classrooms.map(async c => {
+			return {
+				...c,
+				studentsCount: c.students.length,
+				students: req.query.students === '1' ? c.students : null,
+			}
+		})
+
+		const result = await Promise.all(newClassrooms)
+
+		return res.json({ status: 'ok', classrooms: result })
 	} catch (error) {
 		console.log(error)
 		return res.status(500).json(error)
@@ -157,17 +194,29 @@ async function getAllClassrooms(req, res) {
 
 async function getSingleClassroom(req, res) {
 	try {
-		const { teacherOneId } = req.query
+		const { classroomOneId, students } = req.query
 
-		const classrooms = await prisma.classrom.findMany({
-			where: { teacher: { oneId: teacherOneId } },
+		const classroom = await prisma.classrom.findUnique({
+			where: { oneId: classroomOneId },
+			include: { teacher: true },
 		})
 
-		if (!classrooms) {
+		let studentsWithClasses
+
+		if (students === '1') {
+			studentsWithClasses = await prisma.student.findMany({
+				where: { classrooms: { some: { oneId: classroomOneId } } },
+				include: { classrooms: true, scores: true },
+			})
+		}
+
+		console.log(studentsWithClasses)
+
+		if (!classroom) {
 			return res.json({ status: 'bad', msg: 'Sizda hali sinfxonalar mavjud emas' })
 		}
 
-		return res.json({ status: 'ok', classrooms })
+		return res.json({ status: 'ok', classroom, students: studentsWithClasses })
 	} catch (error) {
 		console.log(error)
 		return res.status(500).json(error)

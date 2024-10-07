@@ -38,10 +38,11 @@ model Student {
   id         String     @id @unique @default(cuid())
   oneId      String     @unique
   fullname   String
+  password   String
   classrooms Classrom[]
-  Exam       Exam?      @relation(fields: [examId], references: [id])
+  exam       Exam?      @relation(fields: [examId], references: [id])
   examId     String?
-  Score      Score[]
+  scores      Score[]
 }
 
 model Question {
