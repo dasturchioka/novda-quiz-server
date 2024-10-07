@@ -20,6 +20,8 @@ const {
 	editPackage,
 	deletePackage,
 	editClassroom,
+	getExams,
+	getDataPreExam,
 } = require('../controllers/teacher.controller')
 const {
 	upload,
@@ -57,7 +59,9 @@ router.delete('/delete-question/:id', deleteQuestion)
 router.delete('/delete-image-of-question/:id', deleteExistingImage, deleteImageOfQuestion)
 
 // exams
+router.get('/get-data-pre-exam/:teacherOneId', getDataPreExam)
 router.post('/start-exam', startExam)
-router.post('/finish-exam', finishExam)
+router.put('/finish-exam', finishExam)
+router.get('/get-exams/:teacherOneId', getExams)
 
 module.exports = router

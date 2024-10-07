@@ -42,7 +42,7 @@ model Student {
   classrooms Classrom[]
   exam       Exam?      @relation(fields: [examId], references: [id])
   examId     String?
-  scores      Score[]
+  scores     Score[]
 }
 
 model Question {
@@ -82,7 +82,7 @@ model Exam {
   classromId    String
   active        Boolean   @default(true)
   teacherId     String
-  Score         Score[]
+  scores        Score[]
 }
 
 model Score {

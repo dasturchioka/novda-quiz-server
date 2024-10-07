@@ -479,9 +479,36 @@ async function deleteImageOfQuestion(req, res) {
 	}
 }
 
+async function getDataPreExam(req, res) {
+	try {
+		const { teacherOneId } = req.params
+
+		const packages = await prisma.package.findMany({ where: { teacher: { oneId: teacherOneId } } })
+		const classrooms = await prisma.classrom.findMany({
+			where: { teacher: { oneId: teacherOneId } },
+		})
+
+		const newPackages = packages.map(p => {
+			return { name: p.name, oneId: p.oneId }
+		})
+		const newClassrooms = classrooms.map(c => {
+			return { name: c.name, oneId: c.oneId }
+		})
+
+		return res.json({
+			packages: newPackages,
+			classrooms: newClassrooms,
+			status: 'ok',
+		})
+	} catch (error) {
+		console.log(error)
+		return res.status(500).json(error)
+	}
+}
+
 async function startExam(req, res) {
 	try {
-		const { name } = req.body
+		const { name, teacherOneId, classroomOneId, packageOneId } = req.body
 
 		const newOneId = await createOneId('exam')
 
@@ -489,10 +516,14 @@ async function startExam(req, res) {
 			data: {
 				oneId: newOneId,
 				name,
-				teacher: { connect: { id: teacherId } }, // Connect the exam to a teacher
-				classroom: { connect: { id: classromId } }, // Connect the exam to a classroom
-				packageOfExam: { connect: { id: packageId } }, // Connect the exam to a package
+				teacher: { connect: { oneId: teacherOneId } }, // Connect the exam to a teacher
+				classroom: { connect: { oneId: classroomOneId } }, // Connect the exam to a classroom
+				packageOfExam: { connect: { oneId: packageOneId } }, // Connect the exam to a package
 				active: true,
+			},
+			include: {
+				teacher: true,
+				classroom: { include: { students: true } },
 			},
 		})
 
@@ -519,6 +550,72 @@ async function finishExam(req, res) {
 	}
 }
 
+async function getExams(req, res) {
+	try {
+		const { teacherOneId } = req.params
+		const { all } = req.query
+
+		let exams
+
+		if (all === 'true') {
+			exams = await prisma.exam.findMany({
+				where: { teacher: { oneId: teacherOneId } },
+				include: { classroom: true, students: { include: { scores: true } }, packageOfExam: true },
+			})
+		} else {
+			const allExams = await prisma.exam.findMany({
+				where: { teacher: { oneId: teacherOneId } },
+				include: { classroom: true, students: { include: { scores: true } }, packageOfExam: true },
+			})
+
+			const newExamsFormat = allExams.map(e => {
+				return {
+					name: e.name,
+					studentsCount: e.classroom.students ? e.classroom.students.length : 0,
+					classroom: e.classroom.name,
+					package: e.packageOfExam.name,
+					active: e.active,
+					oneId: e.oneId,
+					id: e.id,
+				}
+			})
+
+			console.log(newExamsFormat[0]);
+
+			exams = newExamsFormat
+		}
+
+		if (!exams) {
+			return res.json({ status: 'bad', msg: 'Hali imtihonlar mavjud emas' })
+		}
+
+		return res.json({ status: 'ok', exams })
+	} catch (error) {
+		console.log(error)
+		return res.status(500).json(error)
+	}
+}
+
+async function getActiveExams(req, res) {
+	try {
+		const { teacherOneId } = req.params
+
+		const exams = await prisma.exam.findMany({
+			where: { teacher: { oneId: teacherOneId }, active: true },
+			include: { classroom: { include: { students: true } } },
+		})
+
+		if (!exams) {
+			return res.json({ status: 'bad', msg: 'Hali imtihonlar mavjud emas' })
+		}
+
+		return res.json({ status: 'ok', exams })
+	} catch (error) {
+		console.log(error)
+		return res.status(500).json(error)
+	}
+}
+
 module.exports = {
 	register,
 	login,
@@ -539,4 +636,7 @@ module.exports = {
 	editClassroom,
 	editPackage,
 	deletePackage,
+	getExams,
+	getActiveExams,
+	getDataPreExam,
 }
