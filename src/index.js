@@ -14,6 +14,7 @@ app.get('/', (req, res) => {
 })
 
 app.use('/api/v1/teacher', require('./routes/teacher.route'))
+app.use('/api/v1/student', require('./routes/student.route'))
 
 app.listen(PORT, () => {
 	console.log(`Server started on port ${PORT}`)

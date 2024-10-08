@@ -1,7 +1,6 @@
 const { PrismaClient } = require('@prisma/client')
 const { createToken } = require('../services/jwt.service')
 const { createOneId } = require('../utils/oneid.util')
-const express = require('express')
 const path = require('path')
 const fs = require('fs').promises
 const TEACHER_JWT_SIGNATURE = process.env.TEACHER_JWT_SIGNATURE
