@@ -37,7 +37,7 @@ router.post('/register', register)
 router.post('/login', login)
 router.get('/check/:id', check)
 
-// profile
+// profile section
 router.get("/get-profile/:oneId", getProfile)
 
 // classrooms
