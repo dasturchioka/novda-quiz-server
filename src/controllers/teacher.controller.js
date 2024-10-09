@@ -197,8 +197,21 @@ async function getSingleClassroom(req, res) {
 
 		const classroom = await prisma.classrom.findUnique({
 			where: { oneId: classroomOneId },
-			include: { teacher: true },
+			include: {
+				teacher: true,
+				Exam: {
+					include: {
+						students: true,
+						scores: { include: { student: true } },
+						packageOfExam: { include: { questions: true } },
+					},
+				},
+			},
 		})
+
+		if (!classroom) {
+			return res.json({ status: 'bad', msg: 'Sinfxona topilmadi' })
+		}
 
 		let studentsWithClasses
 
@@ -209,13 +222,38 @@ async function getSingleClassroom(req, res) {
 			})
 		}
 
-		console.log(studentsWithClasses)
-
-		if (!classroom) {
-			return res.json({ status: 'bad', msg: 'Sizda hali sinfxonalar mavjud emas' })
+		const newClassroom = {
+			name: classroom.name,
+			oneId: classroom.oneId,
+			teacher: classroom.teacher.fullname,
+			students: classroom.students,
+			exams: classroom.Exam
+				? classroom.Exam.map(e => {
+						return {
+							oneId: e.oneId,
+							name: e.name,
+							packageOfExam: {
+								oneId: e.packageOfExam.oneId,
+								name: e.packageOfExam.name,
+								questionsCount: e.packageOfExam.questions.length,
+							},
+							studentsCount: e.students.length,
+							active: e.active,
+							studentsCount: e.students.length,
+							scores: e.scores.length
+								? e.scores.map(s => {
+										return {
+											student: { oneId: s.student.oneId, fullname: s.student.fullname },
+											score: `${s.correctAnswers}/${s.questionsNumber}`,
+										}
+								  })
+								: null,
+						}
+				  })
+				: null,
 		}
 
-		return res.json({ status: 'ok', classroom, students: studentsWithClasses })
+		return res.json({ status: 'ok', classroom: newClassroom, students: studentsWithClasses })
 	} catch (error) {
 		console.log(error)
 		return res.status(500).json(error)
@@ -523,10 +561,34 @@ async function startExam(req, res) {
 			include: {
 				teacher: true,
 				classroom: { include: { students: true } },
+				packageOfExam: { include: { questions: true } },
+				students: true,
 			},
 		})
 
-		return res.json({ status: 'ok', msg: 'Imtihon boshlandi', exam: newExam })
+		const modifiedExam = {
+			oneId: newExam.oneId,
+			name: newExam.name,
+			packageOfExam: {
+				oneId: newExam.packageOfExam.oneId,
+				name: newExam.packageOfExam.name,
+				questionsCount: newExam.packageOfExam.questions.length,
+			},
+			studentsCount: newExam.students.length,
+			active: newExam.active,
+			studentsCount: newExam.students.length,
+			scores:
+				newExam.scores && newExam.scores.length
+					? newExam.scores.map(s => {
+							return {
+								student: { oneId: s.student.oneId, fullname: s.student.fullname },
+								score: `${s.correctAnswers}/${s.questionsNumber}`,
+							}
+					  })
+					: null,
+		}
+
+		return res.json({ status: 'ok', msg: 'Imtihon boshlandi', exam: modifiedExam })
 	} catch (error) {
 		console.log(error)
 		return res.status(500).json(error)
@@ -535,14 +597,53 @@ async function startExam(req, res) {
 
 async function finishExam(req, res) {
 	try {
-		const { examOneId } = req.body
+		const { examOneId, teacherOneId } = req.body
 
 		const updatedExam = await prisma.exam.update({
-			where: { oneId: examOneId },
+			where: { oneId: examOneId, teacher: { oneId: teacherOneId } },
 			data: { active: false },
+			include: {
+				students: true,
+				scores: { include: { student: true } },
+				packageOfExam: { include: { questions: true } },
+			},
 		})
 
-		return res.json({ status: 'ok', msg: 'Imtihon yakunlandi', exam: updatedExam })
+		const newExam = {
+			oneId: updatedExam.oneId,
+			name: updatedExam.name,
+			packageOfExam: {
+				oneId: updatedExam.packageOfExam.oneId,
+				name: updatedExam.packageOfExam.name,
+				questionsCount: updatedExam.packageOfExam.questions.length,
+			},
+			studentsCount: updatedExam.students.length,
+			active: updatedExam.active,
+			studentsCount: updatedExam.students.length,
+			scores: updatedExam.scores.length
+				? updatedExam.scores.map(s => {
+						return {
+							student: { oneId: s.student.oneId, fullname: s.student.fullname },
+							score: `${s.correctAnswers}/${s.questionsNumber}`,
+						}
+				  })
+				: null,
+		}
+
+		return res.json({ status: 'ok', msg: 'Imtihon yakunlandi', exam: newExam })
+	} catch (error) {
+		console.log(error)
+		return res.status(500).json(error)
+	}
+}
+
+async function deleteExam(req, res) {
+	try {
+		const { examOneId } = req.params
+
+		await prisma.exam.delete({ where: { oneId: examOneId } })
+
+		return res.json({ msg: "Imtihon ma'lumotlari o'chirildi", status: 'ok' })
 	} catch (error) {
 		console.log(error)
 		return res.status(500).json(error)
@@ -579,7 +680,7 @@ async function getExams(req, res) {
 				}
 			})
 
-			console.log(newExamsFormat[0]);
+			console.log(newExamsFormat[0])
 
 			exams = newExamsFormat
 		}
@@ -638,4 +739,5 @@ module.exports = {
 	getExams,
 	getActiveExams,
 	getDataPreExam,
+	deleteExam,
 }
