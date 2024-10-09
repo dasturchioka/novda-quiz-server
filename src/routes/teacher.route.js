@@ -23,6 +23,7 @@ const {
 	getExams,
 	getDataPreExam,
 	deleteExam,
+	getProfile,
 } = require('../controllers/teacher.controller')
 const {
 	upload,
@@ -35,6 +36,9 @@ const {
 router.post('/register', register)
 router.post('/login', login)
 router.get('/check/:id', check)
+
+// profile
+router.get("/get-profile/:oneId", getProfile)
 
 // classrooms
 router.post('/create-classroom', createClassroom)

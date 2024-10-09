@@ -90,6 +90,23 @@ async function check(req, res) {
 	}
 }
 
+async function getProfile(req, res) {
+	try {
+		const { oneId } = req.params
+
+		const existTeacher = await prisma.teacher.findUnique({ where: { oneId } })
+
+		if (!existTeacher) {
+			return res.json({ status: 'bad', msg: "O'qituvchi akkaunti topilmadi" })
+		}
+
+		return res.json({ status: 'ok', teacher: existTeacher })
+	} catch (error) {
+		console.log(error)
+		return res.status(500).json(error)
+	}
+}
+
 async function createClassroom(req, res) {
 	try {
 		const { name, teacherOneId } = req.body
@@ -740,4 +757,5 @@ module.exports = {
 	getActiveExams,
 	getDataPreExam,
 	deleteExam,
+	getProfile,
 }
