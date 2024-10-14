@@ -9,10 +9,14 @@ const prisma = new PrismaClient()
 
 async function register(req, res) {
 	try {
-		const { fullname, password } = req.body
+		const { fullname, password, oneId } = req.body
 
 		if (!fullname) {
 			return res.json({ status: 'bad', msg: 'Ism familiyani kiritishingiz kerak' })
+		}
+
+		if (!oneId) {
+			return res.json({ status: 'bad', msg: 'OneId (login) kiritishingiz kerak' })
 		}
 
 		if (!password) {
@@ -23,10 +27,8 @@ async function register(req, res) {
 			return res.json({ status: 'bad', msg: 'Parol kamida 8 ta belgidan tashkil topishi kerak' })
 		}
 
-		const newOneId = await createOneId('teacher')
-
 		const newTeacher = await prisma.teacher.create({
-			data: { oneId: newOneId, fullname, password },
+			data: { oneId, fullname, password },
 		})
 
 		const newToken = await createToken(newTeacher, TEACHER_JWT_SIGNATURE)

@@ -8,10 +8,14 @@ const prisma = new PrismaClient()
 // auth
 async function register(req, res) {
 	try {
-		const { fullname, password, classroomOneId } = req.body
+		const { fullname, password, classroomOneId, oneId } = req.body
 
 		if (!fullname) {
 			return res.json({ status: 'bad', msg: 'Ism familiyani kiritishingiz kerak' })
+		}
+
+		if (!oneId) {
+			return res.json({ status: 'bad', msg: 'oneId (login) kiritishingiz kerak' })
 		}
 
 		if (!password) {
@@ -22,8 +26,6 @@ async function register(req, res) {
 			return res.json({ status: 'bad', msg: 'Parol kamida 8 ta belgidan tashkil topishi kerak' })
 		}
 
-		const newOneId = await createOneId('student')
-
 		if (classroomOneId) {
 			const existClassroom = await prisma.classrom.count({ where: { oneId: classroomOneId } })
 
@@ -33,7 +35,7 @@ async function register(req, res) {
 
 			const newStudent = await prisma.student.create({
 				data: {
-					oneId: newOneId,
+					oneId,
 					fullname,
 					password,
 					classrooms: { connect: { oneId: classroomOneId } },
@@ -51,7 +53,7 @@ async function register(req, res) {
 		}
 
 		const newStudent = await prisma.student.create({
-			data: { oneId: newOneId, fullname, password },
+			data: { oneId, fullname, password },
 		})
 
 		const newToken = await createToken(newStudent, STUDENT_JWT_SIGNATURE)
