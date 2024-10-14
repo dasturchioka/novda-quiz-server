@@ -651,6 +651,7 @@ async function deleteExam(req, res) {
 	try {
 		const { examOneId } = req.params
 
+		await prisma.score.deleteMany({ where: { exam: { oneId: examOneId } } })
 		await prisma.exam.delete({ where: { oneId: examOneId } })
 
 		return res.json({ msg: "Imtihon ma'lumotlari o'chirildi", status: 'ok' })
