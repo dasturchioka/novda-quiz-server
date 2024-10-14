@@ -257,14 +257,7 @@ async function getSingleClassroom(req, res) {
 							studentsCount: e.students.length,
 							active: e.active,
 							studentsCount: e.students.length,
-							scores: e.scores.length
-								? e.scores.map(s => {
-										return {
-											student: { oneId: s.student.oneId, fullname: s.student.fullname },
-											score: `${s.correctAnswers}/${s.questionsNumber}`,
-										}
-								  })
-								: null,
+							scores: e.scores.length ? e.scores : null,
 						}
 				  })
 				: null,

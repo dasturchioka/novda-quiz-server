@@ -86,13 +86,15 @@ model Exam {
 }
 
 model Score {
-  id              String  @id @unique @default(cuid())
+  id              String   @id @unique @default(cuid())
   questionsNumber Int
   correctAnswers  Int
-  exam            Exam    @relation(fields: [examId], references: [id])
-  student         Student @relation(fields: [studentId], references: [id])
+  percentage      String
+  exam            Exam     @relation(fields: [examId], references: [id])
+  student         Student  @relation(fields: [studentId], references: [id])
   examId          String
   studentId       String
+  createdAt       DateTime @default(now())
 }
 
 enum StatusPackage {
