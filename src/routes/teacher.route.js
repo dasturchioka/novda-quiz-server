@@ -42,7 +42,7 @@ router.get("/get-profile/:oneId", getProfile)
 
 // classrooms
 router.post('/create-classroom', createClassroom)
-router.post('/remove-student', removeStudentFromClassroom)
+router.put('/remove-student', removeStudentFromClassroom)
 router.get('/get-classrooms', getAllClassrooms)
 router.put('/edit-classroom/:classroomOneId', editClassroom)
 router.get('/get-single-classroom', getSingleClassroom)
