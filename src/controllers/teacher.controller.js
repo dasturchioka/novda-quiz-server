@@ -219,6 +219,43 @@ async function getAllClassrooms(req, res) {
 	}
 }
 
+async function deleteClassroom(req, res) {
+	try {
+		const { classroomOneId, teacherOneId } = req.params
+
+		const existClassroom = await prisma.classrom.count({
+			where: { oneId: classroomOneId, teacher: { oneId: teacherOneId } },
+		})
+
+		if (!existClassroom) {
+			return res.json({
+				status: 'bad',
+				msg: "Bunday sinfxona topilmadi yoki siz o'zingizga tegishli bo'lmagan sinfni o'chira olmaysiz",
+			})
+		}
+
+		await prisma.student.update({
+			where: { classrooms: { some: { oneId: classroomOneId } } },
+			data: { classrooms: { disconnect: { oneId: classroomOneId } } },
+		})
+		await prisma.teacher.update({
+			where: { classrooms: { some: { oneId: classroomOneId } } },
+			data: { classrooms: { disconnect: { oneId: classroomOneId } } },
+		})
+		await prisma.exam.update({
+			where: { classroom: { oneId: classroomOneId } },
+			data: { active: false },
+		})
+
+		await prisma.classrom.delete({ where: { oneId: classroomOneId } })
+
+		return res.json({status: "ok", msg: "Sinfxona o'chirildi"})
+	} catch (error) {
+		console.log(error);
+		return res.status(500).json(error)
+	}
+}
+
 async function getSingleClassroom(req, res) {
 	try {
 		const { classroomOneId, students } = req.query
@@ -758,4 +795,5 @@ module.exports = {
 	getDataPreExam,
 	deleteExam,
 	getProfile,
+	deleteClassroom,
 }

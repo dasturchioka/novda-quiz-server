@@ -24,6 +24,7 @@ const {
 	getDataPreExam,
 	deleteExam,
 	getProfile,
+	deleteClassroom,
 } = require('../controllers/teacher.controller')
 const {
 	upload,
@@ -46,6 +47,7 @@ router.put('/remove-student', removeStudentFromClassroom)
 router.get('/get-classrooms', getAllClassrooms)
 router.put('/edit-classroom/:classroomOneId', editClassroom)
 router.get('/get-single-classroom', getSingleClassroom)
+router.delete('/delete-classroom/:classroomOneId/:teacherOneId', deleteClassroom)
 
 // packages and questions
 router.post('/create-question-package', createQuestionPackage)
