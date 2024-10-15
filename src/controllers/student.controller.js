@@ -26,6 +26,15 @@ async function register(req, res) {
 			return res.json({ status: 'bad', msg: 'Parol kamida 8 ta belgidan tashkil topishi kerak' })
 		}
 
+		const existStudent = await prisma.student.findUnique({ where: { oneId } })
+
+		if (existStudent) {
+			return res.json({
+				status: 'bad',
+				msg: "Bunday oneId ga ega talaba mavjud, agar bu siz bo'lsangiz, iltimos, login qismiga o'tib tizimga kiring",
+			})
+		}
+
 		if (classroomOneId) {
 			const existClassroom = await prisma.classrom.count({ where: { oneId: classroomOneId } })
 
@@ -172,7 +181,9 @@ async function getClassroom(req, res) {
 			include: {
 				teacher: true,
 				students: true,
-				Exam: { include: { packageOfExam: true, students: true } },
+				Exam: {
+					include: { packageOfExam: true, students: true, scores: { include: { student: true } } },
+				},
 			},
 		})
 
@@ -195,6 +206,15 @@ async function getClassroom(req, res) {
 							packageOfExam: e.packageOfExam.name,
 							studentsCount: e.students.length,
 							active: e.active,
+							scores: e.scores.map(s => {
+								return {
+									...s,
+									student: {
+										fullname: s.student.fullname,
+										oneId: s.student.oneId,
+									},
+								}
+							}),
 						}
 				  })
 				: null,

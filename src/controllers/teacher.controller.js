@@ -27,6 +27,15 @@ async function register(req, res) {
 			return res.json({ status: 'bad', msg: 'Parol kamida 8 ta belgidan tashkil topishi kerak' })
 		}
 
+		const existTeacher = await prisma.teacher.findUnique({ where: { oneId } })
+
+		if (existTeacher) {
+			return res.json({
+				status: 'bad',
+				msg: "Bunday oneId ga ega o'qituvchi mavjud, agar bu siz bo'lsangiz, iltimos, login qismiga o'tib tizimga kiring",
+			})
+		}
+
 		const newTeacher = await prisma.teacher.create({
 			data: { oneId, fullname, password },
 		})
@@ -505,7 +514,9 @@ async function deleteQuestion(req, res) {
 			include: { package: false },
 		})
 
-		await fs.unlink(path.join(__dirname, `../../src/public/${deletedQuestion.img}`))
+		if (deletedQuestion.img) {
+			await fs.unlink(path.join(__dirname, `../../src/public/${deletedQuestion.img}`))
+		}
 
 		return res.json({ msg: "Savol o'chirildi" })
 	} catch (error) {
