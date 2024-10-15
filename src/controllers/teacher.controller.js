@@ -643,14 +643,7 @@ async function finishExam(req, res) {
 			studentsCount: updatedExam.students.length,
 			active: updatedExam.active,
 			studentsCount: updatedExam.students.length,
-			scores: updatedExam.scores.length
-				? updatedExam.scores.map(s => {
-						return {
-							student: { oneId: s.student.oneId, fullname: s.student.fullname },
-							score: `${s.correctAnswers}/${s.questionsNumber}`,
-						}
-				  })
-				: null,
+			scores: updatedExam.scores.length ? updatedExam.scores : null,
 		}
 
 		return res.json({ status: 'ok', msg: 'Imtihon yakunlandi', exam: newExam })
