@@ -223,44 +223,50 @@ async function deleteClassroom(req, res) {
 	try {
 		const { classroomOneId, teacherOneId } = req.params
 
-		const existClassroom = await prisma.classrom.findUnique({
-			where: { oneId: classroomOneId, teacher: { oneId: teacherOneId } },
-			include: { students: true, Exam: { include: { scores: true } } },
-		})
-
-		if (!existClassroom) {
-			return res.json({
-				status: 'bad',
-				msg: "Bunday sinfxona topilmadi yoki siz o'zingizga tegishli bo'lmagan sinfni o'chira olmaysiz",
+		// Start a transaction to ensure all deletions are consistent
+		await prisma.$transaction(async prisma => {
+			// Fetch the classroom along with its relations
+			const existClassroom = await prisma.classrom.findUnique({
+				where: { oneId: classroomOneId },
+				include: { students: true, Exam: { include: { scores: true } }, teacher: true },
 			})
-		}
 
-		if (existClassroom.students && existClassroom.students.length) {
-			existClassroom.students.forEach(async s => {
-				await prisma.classrom.update({
-					where: { oneId: classroomOneId },
-					data: { students: { disconnect: { oneId: s.oneId } } },
+			if (!existClassroom || existClassroom.teacher.oneId !== teacherOneId) {
+				return res.json({
+					status: 'bad',
+					msg: "Bunday sinfxona topilmadi yoki siz o'zingizga tegishli bo'lmagan sinfni o'chira olmaysiz",
 				})
+			}
+
+			// Disconnect all students from the classroom
+			if (existClassroom.students && existClassroom.students.length) {
+				for (const student of existClassroom.students) {
+					await prisma.classrom.update({
+						where: { oneId: classroomOneId },
+						data: { students: { disconnect: { oneId: student.oneId } } },
+					})
+				}
+			}
+
+			// Delete scores and exams related to the classroom
+			if (existClassroom.Exam && existClassroom.Exam.length) {
+				for (const exam of existClassroom.Exam) {
+					await prisma.score.deleteMany({ where: { examId: exam.id } })
+				}
+
+				await prisma.exam.deleteMany({ where: { classromId: existClassroom.id } })
+			}
+
+			// Finally, delete the classroom itself
+			await prisma.classrom.delete({
+				where: { oneId: classroomOneId },
 			})
-		}
-
-		if (existClassroom.Exam) {
-			existClassroom.Exam.forEach(async e => {
-				await prisma.score.deleteMany({ where: { exam: { oneId: e.oneId } } })
-			})
-
-			await prisma.exam.deleteMany({ where: { classroom: { oneId: existClassroom.oneId } } })
-		}
-
-		await prisma.classrom.delete({
-			where: { oneId: classroomOneId },
-			include: { Exam: { include: { scores: true } } },
 		})
 
 		return res.json({ status: 'ok', msg: "Sinfxona o'chirildi" })
 	} catch (error) {
-		console.log(error)
-		return res.status(500).json(error)
+		console.error('Error deleting classroom:', error)
+		return res.status(500).json({ status: 'error', msg: 'Server error' })
 	}
 }
 
