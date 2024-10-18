@@ -298,6 +298,7 @@ async function getSingleClassroom(req, res) {
 			studentsWithClasses = await prisma.student.findMany({
 				where: { classrooms: { some: { oneId: classroomOneId } } },
 				include: { classrooms: true, scores: true },
+				orderBy: { fullname: 'asc' },
 			})
 		}
 
